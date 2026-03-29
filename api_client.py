@@ -1,5 +1,7 @@
 """API client for Slay the Spire 2 Codex database."""
 
+from __future__ import annotations
+
 import asyncio
 from typing import Any
 
@@ -7,12 +9,7 @@ import aiohttp
 
 from astrbot.api import logger
 
-from .constants import (
-    API_BASE,
-    DEFAULT_LANG,
-    ENDPOINTS,
-    REQUEST_TIMEOUT,
-)
+from .constants import API_BASE, DEFAULT_LANG, ENDPOINTS, REQUEST_TIMEOUT
 
 
 class STS2APIClient:
@@ -25,6 +22,22 @@ class STS2APIClient:
             timeout: Request timeout in seconds.
         """
         self.timeout = aiohttp.ClientTimeout(total=timeout)
+        self._session: aiohttp.ClientSession | None = None
+
+    async def start(self) -> None:
+        """Start the underlying HTTP session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(timeout=self.timeout)
+
+    async def close(self) -> None:
+        """Close the underlying HTTP session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+
+    def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            raise RuntimeError("API client session is not initialized")
+        return self._session
 
     async def fetch_endpoint(
         self, endpoint: str, keyword: str | None = None
@@ -54,38 +67,62 @@ class STS2APIClient:
         if search_param and keyword:
             params[search_param] = keyword
 
-        logger.debug(f"Fetching {endpoint} from {url} with params: {params}")
+        logger.debug("Fetching %s from %s with params: %s", endpoint, url, params)
 
         try:
-            async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                async with session.get(url, params=params) as response:
-                    response.raise_for_status()
-                    payload = await response.json()
+            session = self._get_session()
+            async with session.get(url, params=params) as response:
+                response.raise_for_status()
+                payload = await response.json()
 
-            if isinstance(payload, list):
-                items = payload
-            else:
-                items = []
+            items = self._extract_items(payload, endpoint)
 
             # If there's no search param but we have a keyword, filter locally
             if keyword and not search_param:
                 items = self._filter_items(items, keyword)
 
-            logger.debug(f"Retrieved {len(items)} items from {endpoint}")
+            logger.debug("Retrieved %s items from %s", len(items), endpoint)
             return items
 
-        except aiohttp.ClientResponseError as e:
-            logger.error(f"HTTP error {e.status} for {endpoint}: {e.message}")
+        except aiohttp.ClientResponseError as exc:
+            logger.error(
+                "HTTP error %s for %s with params %s: %s",
+                exc.status,
+                endpoint,
+                params,
+                exc.message,
+            )
             raise
-        except aiohttp.ClientError as e:
-            logger.error(f"HTTP request failed for {endpoint}: {e}")
+        except aiohttp.ClientError as exc:
+            logger.error(
+                "HTTP request failed for %s with params %s: %s", endpoint, params, exc
+            )
             raise
-        except asyncio.TimeoutError:
-            logger.error(f"Request timeout for {endpoint} after {self.timeout.total}s")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error fetching {endpoint}: {e}")
-            raise
+        except asyncio.TimeoutError as exc:
+            logger.error(
+                "Request timeout for %s after %ss with params %s",
+                endpoint,
+                self.timeout.total,
+                params,
+            )
+            raise exc
+
+    def _extract_items(self, payload: Any, endpoint: str) -> list[dict[str, Any]]:
+        if isinstance(payload, list):
+            return payload
+
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, list):
+                return data
+            items = payload.get("items")
+            if isinstance(items, list):
+                return items
+
+        logger.warning(
+            "Unexpected payload structure for %s: %s", endpoint, type(payload)
+        )
+        return []
 
     @staticmethod
     def _filter_items(

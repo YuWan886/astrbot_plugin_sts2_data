@@ -1,6 +1,7 @@
 """Formatters for converting API data to user-friendly messages."""
 
 from collections.abc import Generator
+import re
 from typing import Any
 
 from astrbot.api.event import AstrMessageEvent
@@ -35,9 +36,15 @@ class STS2Formatter:
             return
 
         if endpoint in DETAILED_ENDPOINTS:
+            if len(data) > 1:
+                yield from self._format_list(data, event)
+                yield event.plain_result(
+                    f"共 {len(data)} 条结果，请补充更精确的关键词查看详情。"
+                )
+                return
             yield from self._format_detailed(endpoint, data[0], event)
         else:
-            yield from self._format_list(endpoint, data, event)
+            yield from self._format_list(data, event)
 
     def _format_detailed(
         self, endpoint: str, item: dict[str, Any], event: AstrMessageEvent
@@ -77,20 +84,25 @@ class STS2Formatter:
         if normalized_url:
             yield event.image_result(normalized_url)
 
-        header = f"{card.get('name', 'Unknown')} | {card.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(card.get('name'), 'Unknown')} | "
+            f"{self._safe_text(card.get('id'), 'N/A')}"
+        )
         detail = (
-            f"费用: {card.get('cost', 'N/A')} | "
-            f"类型: {card.get('type', 'N/A')} | "
-            f"稀有度: {card.get('rarity', 'N/A')}"
+            f"费用: {self._safe_text(card.get('cost'), 'N/A')} | "
+            f"类型: {self._safe_text(card.get('type'), 'N/A')} | "
+            f"稀有度: {self._safe_text(card.get('rarity'), 'N/A')}"
         )
 
-        description = card.get("description") or ""
+        description = self._safe_text(card.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
         upgrade = card.get("upgrade")
         if isinstance(upgrade, dict) and upgrade:
             upgrade_desc = ", ".join(
-                f"{key}: {value}" for key, value in upgrade.items() if value is not None
+                f"{self._safe_text(key)}: {self._safe_text(value)}"
+                for key, value in upgrade.items()
+                if value is not None
             )
             if upgrade_desc:
                 lines.append(f"升级: {upgrade_desc}")
@@ -105,15 +117,19 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = f"{relic.get('name', 'Unknown')} | {relic.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(relic.get('name'), 'Unknown')} | "
+            f"{self._safe_text(relic.get('id'), 'N/A')}"
+        )
         detail = (
-            f"稀有度: {relic.get('rarity', 'N/A')} | 池: {relic.get('pool', 'N/A')}"
+            f"稀有度: {self._safe_text(relic.get('rarity'), 'N/A')} | "
+            f"池: {self._safe_text(relic.get('pool'), 'N/A')}"
         )
 
-        description = relic.get("description") or ""
+        description = self._safe_text(relic.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
-        flavor = relic.get("flavor") or ""
+        flavor = self._safe_text(relic.get("flavor"))
         if flavor:
             lines.append(f"背景: {flavor}")
 
@@ -129,23 +145,30 @@ class STS2Formatter:
         if normalized_url:
             yield event.image_result(normalized_url)
 
-        header = f"{monster.get('name', 'Unknown')} | {monster.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(monster.get('name'), 'Unknown')} | "
+            f"{self._safe_text(monster.get('id'), 'N/A')}"
+        )
 
-        hp_normal = f"{monster.get('min_hp', 'N/A')}-{monster.get('max_hp', 'N/A')}"
+        hp_normal = (
+            f"{self._safe_text(monster.get('min_hp'), 'N/A')}-"
+            f"{self._safe_text(monster.get('max_hp'), 'N/A')}"
+        )
         hp_asc = (
-            f"{monster.get('min_hp_ascension', 'N/A')}-"
-            f"{monster.get('max_hp_ascension', 'N/A')}"
+            f"{self._safe_text(monster.get('min_hp_ascension'), 'N/A')}-"
+            f"{self._safe_text(monster.get('max_hp_ascension'), 'N/A')}"
         )
 
         detail = (
-            f"类型: {monster.get('type', 'N/A')} | 生命: {hp_normal} | 进阶: {hp_asc}"
+            f"类型: {self._safe_text(monster.get('type'), 'N/A')} | "
+            f"生命: {hp_normal} | 进阶: {hp_asc}"
         )
 
         lines = [header, detail]
 
         moves = monster.get("moves") or []
         move_names = ", ".join(
-            str(move.get("name"))
+            self._safe_text(move.get("name"))
             for move in moves
             if isinstance(move, dict) and move.get("name")
         )
@@ -163,12 +186,16 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = f"{potion.get('name', 'Unknown')} | {potion.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(potion.get('name'), 'Unknown')} | "
+            f"{self._safe_text(potion.get('id'), 'N/A')}"
+        )
         detail = (
-            f"稀有度: {potion.get('rarity', 'N/A')} | 池: {potion.get('pool', 'N/A')}"
+            f"稀有度: {self._safe_text(potion.get('rarity'), 'N/A')} | "
+            f"池: {self._safe_text(potion.get('pool'), 'N/A')}"
         )
 
-        description = potion.get("description") or ""
+        description = self._safe_text(potion.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
         yield event.plain_result("\n".join(lines))
@@ -182,13 +209,14 @@ class STS2Formatter:
             yield event.image_result(image_url)
 
         header = (
-            f"{enchantment.get('name', 'Unknown')} | {enchantment.get('id', 'N/A')}"
+            f"{self._safe_text(enchantment.get('name'), 'Unknown')} | "
+            f"{self._safe_text(enchantment.get('id'), 'N/A')}"
         )
-        description = enchantment.get("description") or ""
+        description = self._safe_text(enchantment.get("description"))
 
         lines = [header, f"描述: {description}"]
 
-        extra_text = enchantment.get("extra_card_text") or ""
+        extra_text = self._safe_text(enchantment.get("extra_card_text"))
         if extra_text:
             lines.append(f"附加: {extra_text}")
 
@@ -198,13 +226,16 @@ class STS2Formatter:
         self, event_item: dict[str, Any], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format an event item."""
-        header = f"{event_item.get('name', 'Unknown')} | {event_item.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(event_item.get('name'), 'Unknown')} | "
+            f"{self._safe_text(event_item.get('id'), 'N/A')}"
+        )
         detail = (
-            f"类型: {event_item.get('type', 'N/A')} | "
-            f"章节: {event_item.get('act', 'N/A')}"
+            f"类型: {self._safe_text(event_item.get('type'), 'N/A')} | "
+            f"章节: {self._safe_text(event_item.get('act'), 'N/A')}"
         )
 
-        description = event_item.get("description") or ""
+        description = self._safe_text(event_item.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
         options = event_item.get("options") or []
@@ -212,8 +243,8 @@ class STS2Formatter:
 
         for opt in options:
             if isinstance(opt, dict):
-                title = opt.get("title") or opt.get("id")
-                desc = opt.get("description") or ""
+                title = self._safe_text(opt.get("title") or opt.get("id"))
+                desc = self._safe_text(opt.get("description"))
                 if title:
                     option_lines.append(f"- {title}: {desc}" if desc else f"- {title}")
 
@@ -230,12 +261,16 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = f"{power.get('name', 'Unknown')} | {power.get('id', 'N/A')}"
+        header = (
+            f"{self._safe_text(power.get('name'), 'Unknown')} | "
+            f"{self._safe_text(power.get('id'), 'N/A')}"
+        )
         detail = (
-            f"类型: {power.get('type', 'N/A')} | 叠加: {power.get('stack_type', 'N/A')}"
+            f"类型: {self._safe_text(power.get('type'), 'N/A')} | "
+            f"叠加: {self._safe_text(power.get('stack_type'), 'N/A')}"
         )
 
-        description = power.get("description") or ""
+        description = self._safe_text(power.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
         yield event.plain_result("\n".join(lines))
@@ -244,8 +279,11 @@ class STS2Formatter:
         self, item: dict[str, Any], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format a generic detailed item."""
-        header = f"{item.get('name', 'Unknown')} | {item.get('id', 'N/A')}"
-        description = item.get("description") or ""
+        header = (
+            f"{self._safe_text(item.get('name'), 'Unknown')} | "
+            f"{self._safe_text(item.get('id'), 'N/A')}"
+        )
+        description = self._safe_text(item.get("description"))
 
         lines = [header]
         if description:
@@ -254,11 +292,12 @@ class STS2Formatter:
         yield event.plain_result("\n".join(lines))
 
     def _format_list(
-        self, endpoint: str, items: list[dict[str, Any]], event: AstrMessageEvent
+        self, items: list[dict[str, Any]], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format a list of items."""
         lines = [
-            f"{item.get('name', 'Unknown')} | {item.get('id', 'N/A')}"
+            f"{self._safe_text(item.get('name'), 'Unknown')} | "
+            f"{self._safe_text(item.get('id'), 'N/A')}"
             for item in items[:MAX_LIST_ITEMS]
         ]
 
@@ -266,6 +305,15 @@ class STS2Formatter:
             lines.append(f"...and {len(items) - MAX_LIST_ITEMS} more")
 
         yield event.plain_result("\n".join(lines))
+
+    @staticmethod
+    def _sanitize_text(text: str) -> str:
+        return re.sub(r"[\x00-\x1f\x7f]", "", text)
+
+    def _safe_text(self, value: Any, default: str = "") -> str:
+        if value is None:
+            return default
+        return self._sanitize_text(str(value))
 
     @staticmethod
     def format_help() -> str:

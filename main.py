@@ -13,7 +13,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.0.0")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.1.0")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
@@ -65,6 +65,12 @@ class Sts2DataPlugin(Star):
             )
             return
 
+        if keyword is None:
+            yield event.plain_result(
+                "请补充关键词，例如：/sts2 cards strike 或 /sts2 relics lantern"
+            )
+            return
+
         try:
             # Fetch data from API
             data = await self.api_client.fetch_endpoint(endpoint, keyword)
@@ -73,9 +79,9 @@ class Sts2DataPlugin(Star):
             for result in self.formatter.format_response(endpoint, data, event):
                 yield result
 
-        except Exception as exc:
+        except Exception:
             logger.exception("STS2 data fetch failed")
-            yield event.plain_result(f"Request failed: {exc}")
+            yield event.plain_result("请求失败，请稍后重试。")
 
     def _parse_query(self, query: str) -> tuple[str | None, str | None]:
         """Parse user query to extract endpoint and keyword.
@@ -93,7 +99,8 @@ class Sts2DataPlugin(Star):
         first = parts[0].lower()
 
         # Remove command prefixes
-        if first in {"sts2", "/sts2", "yw-sts2", "/yw-sts2"} or "sts2" in first:
+        command_prefixes = {"sts2", "/sts2", "yw-sts2", "/yw-sts2"}
+        if first in command_prefixes:
             parts = parts[1:]
         elif first.startswith("yw-"):
             parts[0] = first.removeprefix("yw-")

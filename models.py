@@ -68,19 +68,3 @@ class Power(BaseItem, total=False):
 
     type: str | None
     stack_type: str | None
-
-
-# Type aliases for convenience
-ItemData = dict[str, Any]
-ItemList = list[ItemData]
-
-# Mapping from endpoint names to model types
-ENDPOINT_MODELS = {
-    "cards": Card,
-    "relics": Relic,
-    "monsters": Monster,
-    "potions": Potion,
-    "enchantments": Enchantment,
-    "events": Event,
-    "powers": Power,
-}

@@ -2,13 +2,15 @@
 
 from typing import TypedDict
 
+from typing_extensions import NotRequired
 
-class EndpointConfig(TypedDict, total=False):
+
+class EndpointConfig(TypedDict):
     """Configuration for an API endpoint."""
 
     path: str
-    search_param: str | None
     id_path: str
+    search_param: NotRequired[str | None]
 
 
 API_BASE = "https://spire-codex.com"
