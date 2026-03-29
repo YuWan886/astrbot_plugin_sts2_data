@@ -21,6 +21,10 @@ class STS2Formatter:
         """
         self.api_client = api_client
 
+    def _plain_result(self, event: AstrMessageEvent, text: str) -> Any:
+        """Create a plain text result without text-to-image conversion."""
+        return event.plain_result(text).use_t2i(False)
+
     def format_response(
         self, endpoint: str, data: list[dict[str, Any]], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
@@ -32,18 +36,18 @@ class STS2Formatter:
             event: The message event for generating results.
         """
         if not data:
-            yield event.plain_result("No matching records found.")
+            yield self._plain_result(event, "No matching records found.")
             return
 
         if endpoint in DETAILED_ENDPOINTS:
             if len(data) > 1:
                 yield from self._format_list(data, event)
-                yield event.plain_result(
+                yield self._plain_result(event, 
                     f"共 {len(data)} 条结果，请补充更精确的关键词查看详情。"
                 )
                 return
             if not isinstance(data[0], dict):
-                yield event.plain_result("数据格式异常，请稍后重试。")
+                yield self._plain_result(event, "数据格式异常，请稍后重试。")
                 return
             yield from self._format_detailed(endpoint, data[0], event)
         else:
@@ -107,7 +111,7 @@ class STS2Formatter:
             if upgrade_desc:
                 lines.append(f"升级: {upgrade_desc}")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_relic(
         self, relic: dict[str, Any], event: AstrMessageEvent
@@ -130,7 +134,7 @@ class STS2Formatter:
         if flavor:
             lines.append(f"背景: {flavor}")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_monster(
         self, monster: dict[str, Any], event: AstrMessageEvent
@@ -170,7 +174,7 @@ class STS2Formatter:
         if move_names:
             lines.append(f"招式: {move_names}")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_potion(
         self, potion: dict[str, Any], event: AstrMessageEvent
@@ -189,7 +193,7 @@ class STS2Formatter:
         description = self._safe_text(potion.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_enchantment(
         self, enchantment: dict[str, Any], event: AstrMessageEvent
@@ -208,12 +212,16 @@ class STS2Formatter:
         if extra_text:
             lines.append(f"附加: {extra_text}")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_event(
         self, event_item: dict[str, Any], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format an event item."""
+        image_url = self.api_client.normalize_image_url(event_item.get("image_url"))
+        if image_url:
+            yield event.image_result(image_url)
+
         header = self._build_header(event_item)
         detail = (
             f"类型: {self._safe_text(event_item.get('type'), 'N/A')} | "
@@ -222,6 +230,18 @@ class STS2Formatter:
 
         description = self._safe_text(event_item.get("description"))
         lines = [header, detail, f"描述: {description}"]
+
+        epithet = self._safe_text(event_item.get("epithet"))
+        if epithet:
+            lines.append(f"称号: {epithet}")
+
+        relics = event_item.get("relics") or []
+        if isinstance(relics, list):
+            relic_text = ", ".join(
+                self._safe_text(relic) for relic in relics if relic is not None
+            )
+            if relic_text:
+                lines.append(f"遗物: {relic_text}")
 
         options = event_item.get("options") or []
         option_lines = []
@@ -236,7 +256,56 @@ class STS2Formatter:
         if option_lines:
             lines.append("选项:\n" + "\n".join(option_lines))
 
-        yield event.plain_result("\n".join(lines))
+        pages = event_item.get("pages") or []
+        page_lines = []
+        for page in pages:
+            if not isinstance(page, dict):
+                continue
+            page_title = self._safe_text(page.get("id"))
+            page_desc = self._safe_text(page.get("description"))
+            page_header = page_title or "页面"
+            page_lines.append(f"{page_header}: {page_desc}" if page_desc else page_header)
+            page_options = page.get("options") or []
+            page_option_lines = []
+            for opt in page_options:
+                if isinstance(opt, dict):
+                    title = self._safe_text(opt.get("title") or opt.get("id"))
+                    desc = self._safe_text(opt.get("description"))
+                    if title:
+                        page_option_lines.append(
+                            f"  - {title}: {desc}" if desc else f"  - {title}"
+                        )
+            if page_option_lines:
+                page_lines.extend(page_option_lines)
+
+        if page_lines:
+            lines.append("流程:\n" + "\n".join(page_lines))
+
+        dialogue = event_item.get("dialogue") or {}
+        dialogue_lines = []
+        if isinstance(dialogue, dict):
+            for key, entries in dialogue.items():
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, dict):
+                        continue
+                    order = self._safe_text(entry.get("order"))
+                    speaker = self._safe_text(entry.get("speaker"))
+                    text = self._safe_text(entry.get("text"))
+                    if not (order or speaker or text):
+                        continue
+                    parts = [part for part in [order, speaker] if part]
+                    prefix = " ".join(parts).strip()
+                    if prefix:
+                        dialogue_lines.append(f"- {prefix}: {text}" if text else f"- {prefix}")
+                    else:
+                        dialogue_lines.append(f"- {text}")
+
+        if dialogue_lines:
+            lines.append("对话:\n" + "\n".join(dialogue_lines))
+
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_power(
         self, power: dict[str, Any], event: AstrMessageEvent
@@ -255,7 +324,7 @@ class STS2Formatter:
         description = self._safe_text(power.get("description"))
         lines = [header, detail, f"描述: {description}"]
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_generic_detailed(
         self, item: dict[str, Any], event: AstrMessageEvent
@@ -268,7 +337,7 @@ class STS2Formatter:
         if description:
             lines.append(f"描述: {description}")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _format_list(
         self, items: list[dict[str, Any]], event: AstrMessageEvent
@@ -283,13 +352,13 @@ class STS2Formatter:
             lines.append(self._build_header(item))
 
         if not lines:
-            yield event.plain_result("数据格式异常，请稍后重试。")
+            yield self._plain_result(event, "数据格式异常，请稍后重试。")
             return
 
         if len(items) > MAX_LIST_ITEMS:
             lines.append(f"...and {len(items) - MAX_LIST_ITEMS} more")
 
-        yield event.plain_result("\n".join(lines))
+        yield self._plain_result(event, "\n".join(lines))
 
     def _build_header(self, item: dict[str, Any]) -> str:
         """Build a basic header with name and id."""
