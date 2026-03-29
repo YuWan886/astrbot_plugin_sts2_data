@@ -13,7 +13,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.1.0")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.0")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
@@ -29,6 +29,7 @@ class Sts2DataPlugin(Star):
 
     async def initialize(self) -> None:
         """Optional async initialization."""
+        await self.api_client.start()
         logger.info("STS2 Data plugin initialized")
 
     @filter.command("sts2_help")
@@ -129,4 +130,5 @@ class Sts2DataPlugin(Star):
 
     async def terminate(self) -> None:
         """Optional async termination."""
+        await self.api_client.close()
         logger.info("STS2 Data plugin terminated")

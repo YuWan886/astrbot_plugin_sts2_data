@@ -7,7 +7,7 @@ from typing import Any
 from astrbot.api.event import AstrMessageEvent
 
 from .api_client import STS2APIClient
-from .constants import DETAILED_ENDPOINTS, MAX_LIST_ITEMS
+from .constants import DETAILED_ENDPOINTS, ENDPOINTS, MAX_LIST_ITEMS
 
 
 class STS2Formatter:
@@ -318,8 +318,6 @@ class STS2Formatter:
     @staticmethod
     def format_help() -> str:
         """Format help message."""
-        from .constants import ENDPOINTS
-
         endpoints = sorted(ENDPOINTS.keys())
         endpoints_text = "\n".join(f"- {name}" for name in endpoints)
 

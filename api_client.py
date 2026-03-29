@@ -84,6 +84,14 @@ class STS2APIClient:
             logger.debug("Retrieved %s items from %s", len(items), endpoint)
             return items
 
+        except aiohttp.ContentTypeError as exc:
+            logger.error(
+                "Unexpected response content for %s with params %s: %s",
+                endpoint,
+                params,
+                exc,
+            )
+            raise
         except aiohttp.ClientResponseError as exc:
             logger.error(
                 "HTTP error %s for %s with params %s: %s",
@@ -98,14 +106,14 @@ class STS2APIClient:
                 "HTTP request failed for %s with params %s: %s", endpoint, params, exc
             )
             raise
-        except asyncio.TimeoutError as exc:
+        except asyncio.TimeoutError:
             logger.error(
                 "Request timeout for %s after %ss with params %s",
                 endpoint,
                 self.timeout.total,
                 params,
             )
-            raise exc
+            raise
 
     def _extract_items(self, payload: Any, endpoint: str) -> list[dict[str, Any]]:
         if isinstance(payload, list):
