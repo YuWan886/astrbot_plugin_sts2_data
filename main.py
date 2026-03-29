@@ -14,7 +14,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.1")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.2")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
@@ -74,6 +74,8 @@ class Sts2DataPlugin(Star):
             return
 
         try:
+            await self.api_client.start()
+
             # Fetch data from API
             data = await self.api_client.fetch_endpoint(endpoint, keyword)
 

@@ -73,6 +73,7 @@ class STS2APIClient:
         logger.debug("Fetching %s from %s with params: %s", endpoint, url, params)
 
         try:
+            await self.start()
             session = self._get_session()
             async with session.get(url, params=params) as response:
                 response.raise_for_status()
@@ -125,10 +126,10 @@ class STS2APIClient:
         if isinstance(payload, dict):
             data = payload.get("data")
             if isinstance(data, list):
-                return data
+                return [item for item in data if isinstance(item, dict)]
             items = payload.get("items")
             if isinstance(items, list):
-                return items
+                return [item for item in items if isinstance(item, dict)]
 
         logger.warning(
             "Unexpected payload structure for %s: %s", endpoint, type(payload)
@@ -178,4 +179,7 @@ class STS2APIClient:
         if url.startswith("/"):
             return f"{API_BASE}{url}"
 
-        return url
+        if url.startswith(("http://", "https://")):
+            return url
+
+        return None

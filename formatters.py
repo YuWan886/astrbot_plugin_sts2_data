@@ -42,6 +42,9 @@ class STS2Formatter:
                     f"共 {len(data)} 条结果，请补充更精确的关键词查看详情。"
                 )
                 return
+            if not isinstance(data[0], dict):
+                yield event.plain_result("数据格式异常，请稍后重试。")
+                return
             yield from self._format_detailed(endpoint, data[0], event)
         else:
             yield from self._format_list(data, event)
@@ -301,6 +304,10 @@ class STS2Formatter:
             for item in items[:MAX_LIST_ITEMS]
             if isinstance(item, dict)
         ]
+
+        if not lines:
+            yield event.plain_result("数据格式异常，请稍后重试。")
+            return
 
         if len(items) > MAX_LIST_ITEMS:
             lines.append(f"...and {len(items) - MAX_LIST_ITEMS} more")
