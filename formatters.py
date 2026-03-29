@@ -299,6 +299,7 @@ class STS2Formatter:
             f"{self._safe_text(item.get('name'), 'Unknown')} | "
             f"{self._safe_text(item.get('id'), 'N/A')}"
             for item in items[:MAX_LIST_ITEMS]
+            if isinstance(item, dict)
         ]
 
         if len(items) > MAX_LIST_ITEMS:

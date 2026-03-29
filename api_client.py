@@ -23,16 +23,19 @@ class STS2APIClient:
         """
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
+        self._session_lock = asyncio.Lock()
 
     async def start(self) -> None:
         """Start the underlying HTTP session."""
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(timeout=self.timeout)
+        async with self._session_lock:
+            if self._session is None or self._session.closed:
+                self._session = aiohttp.ClientSession(timeout=self.timeout)
 
     async def close(self) -> None:
         """Close the underlying HTTP session."""
-        if self._session and not self._session.closed:
-            await self._session.close()
+        async with self._session_lock:
+            if self._session and not self._session.closed:
+                await self._session.close()
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -117,7 +120,7 @@ class STS2APIClient:
 
     def _extract_items(self, payload: Any, endpoint: str) -> list[dict[str, Any]]:
         if isinstance(payload, list):
-            return payload
+            return [item for item in payload if isinstance(item, dict)]
 
         if isinstance(payload, dict):
             data = payload.get("data")

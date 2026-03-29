@@ -1,6 +1,6 @@
 name: astrbot_plugin_sts2_data 
 display_name: STS2 Data 
 desc: 查询杀戮尖塔2数据库信息。
-version: v1.2.0 
+version: v1.2.1 
 author: YuWan886 
 repo: https://github.com/YuWan886/astrbot_plugin_sts2_data 

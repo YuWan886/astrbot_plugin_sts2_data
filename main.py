@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from astrbot.api import logger
@@ -13,7 +14,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.0")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.1")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
@@ -80,6 +81,8 @@ class Sts2DataPlugin(Star):
             for result in self.formatter.format_response(endpoint, data, event):
                 yield result
 
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("STS2 data fetch failed")
             yield event.plain_result("请求失败，请稍后重试。")
