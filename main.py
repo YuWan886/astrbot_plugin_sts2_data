@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import aiohttp
+
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
@@ -14,7 +16,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.2.2")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.3.0")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
@@ -69,13 +71,11 @@ class Sts2DataPlugin(Star):
 
         if keyword is None:
             yield event.plain_result(
-                "请补充关键词，例如：/sts2 cards strike 或 /sts2 relics lantern"
+                "Usage: /sts2 <endpoint> <keyword>. Example: /sts2 cards strike"
             )
             return
 
         try:
-            await self.api_client.start()
-
             # Fetch data from API
             data = await self.api_client.fetch_endpoint(endpoint, keyword)
 
@@ -85,6 +85,21 @@ class Sts2DataPlugin(Star):
 
         except asyncio.CancelledError:
             raise
+        except asyncio.TimeoutError:
+            logger.warning("STS2 data fetch timed out")
+            yield event.plain_result("请求超时，请稍后重试。")
+        except aiohttp.ClientResponseError as exc:
+            logger.warning("STS2 data fetch failed with status %s", exc.status)
+            yield event.plain_result("上游服务返回异常状态，请稍后重试。")
+        except aiohttp.ClientError:
+            logger.exception("STS2 data fetch failed with client error")
+            yield event.plain_result("请求失败，请稍后重试。")
+        except RuntimeError:
+            logger.exception("STS2 data fetch failed due to uninitialized session")
+            yield event.plain_result("服务未就绪，请稍后重试。")
+        except ValueError:
+            logger.exception("STS2 data fetch failed due to invalid endpoint")
+            yield event.plain_result("请求参数错误，请检查指令格式。")
         except Exception:
             logger.exception("STS2 data fetch failed")
             yield event.plain_result("请求失败，请稍后重试。")
@@ -105,11 +120,9 @@ class Sts2DataPlugin(Star):
         first = parts[0].lower()
 
         # Remove command prefixes
-        command_prefixes = {"sts2", "/sts2", "yw-sts2", "/yw-sts2"}
+        command_prefixes = {"sts2", "/sts2"}
         if first in command_prefixes:
             parts = parts[1:]
-        elif first.startswith("yw-"):
-            parts[0] = first.removeprefix("yw-")
 
         if not parts:
             return None, None
@@ -127,9 +140,6 @@ class Sts2DataPlugin(Star):
 
         # Extract keyword
         keyword = " ".join(parts[1:]).strip() if len(parts) > 1 else ""
-
-        # Final endpoint normalization
-        endpoint = SINGULAR_ALIASES.get(endpoint, endpoint)
 
         return endpoint, keyword if keyword else None
 

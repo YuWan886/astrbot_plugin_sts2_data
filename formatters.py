@@ -87,10 +87,7 @@ class STS2Formatter:
         if normalized_url:
             yield event.image_result(normalized_url)
 
-        header = (
-            f"{self._safe_text(card.get('name'), 'Unknown')} | "
-            f"{self._safe_text(card.get('id'), 'N/A')}"
-        )
+        header = self._build_header(card)
         detail = (
             f"费用: {self._safe_text(card.get('cost'), 'N/A')} | "
             f"类型: {self._safe_text(card.get('type'), 'N/A')} | "
@@ -120,10 +117,7 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = (
-            f"{self._safe_text(relic.get('name'), 'Unknown')} | "
-            f"{self._safe_text(relic.get('id'), 'N/A')}"
-        )
+        header = self._build_header(relic)
         detail = (
             f"稀有度: {self._safe_text(relic.get('rarity'), 'N/A')} | "
             f"池: {self._safe_text(relic.get('pool'), 'N/A')}"
@@ -148,10 +142,7 @@ class STS2Formatter:
         if normalized_url:
             yield event.image_result(normalized_url)
 
-        header = (
-            f"{self._safe_text(monster.get('name'), 'Unknown')} | "
-            f"{self._safe_text(monster.get('id'), 'N/A')}"
-        )
+        header = self._build_header(monster)
 
         hp_normal = (
             f"{self._safe_text(monster.get('min_hp'), 'N/A')}-"
@@ -189,10 +180,7 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = (
-            f"{self._safe_text(potion.get('name'), 'Unknown')} | "
-            f"{self._safe_text(potion.get('id'), 'N/A')}"
-        )
+        header = self._build_header(potion)
         detail = (
             f"稀有度: {self._safe_text(potion.get('rarity'), 'N/A')} | "
             f"池: {self._safe_text(potion.get('pool'), 'N/A')}"
@@ -211,10 +199,7 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = (
-            f"{self._safe_text(enchantment.get('name'), 'Unknown')} | "
-            f"{self._safe_text(enchantment.get('id'), 'N/A')}"
-        )
+        header = self._build_header(enchantment)
         description = self._safe_text(enchantment.get("description"))
 
         lines = [header, f"描述: {description}"]
@@ -229,10 +214,7 @@ class STS2Formatter:
         self, event_item: dict[str, Any], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format an event item."""
-        header = (
-            f"{self._safe_text(event_item.get('name'), 'Unknown')} | "
-            f"{self._safe_text(event_item.get('id'), 'N/A')}"
-        )
+        header = self._build_header(event_item)
         detail = (
             f"类型: {self._safe_text(event_item.get('type'), 'N/A')} | "
             f"章节: {self._safe_text(event_item.get('act'), 'N/A')}"
@@ -264,10 +246,7 @@ class STS2Formatter:
         if image_url:
             yield event.image_result(image_url)
 
-        header = (
-            f"{self._safe_text(power.get('name'), 'Unknown')} | "
-            f"{self._safe_text(power.get('id'), 'N/A')}"
-        )
+        header = self._build_header(power)
         detail = (
             f"类型: {self._safe_text(power.get('type'), 'N/A')} | "
             f"叠加: {self._safe_text(power.get('stack_type'), 'N/A')}"
@@ -282,10 +261,7 @@ class STS2Formatter:
         self, item: dict[str, Any], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format a generic detailed item."""
-        header = (
-            f"{self._safe_text(item.get('name'), 'Unknown')} | "
-            f"{self._safe_text(item.get('id'), 'N/A')}"
-        )
+        header = self._build_header(item)
         description = self._safe_text(item.get("description"))
 
         lines = [header]
@@ -298,12 +274,13 @@ class STS2Formatter:
         self, items: list[dict[str, Any]], event: AstrMessageEvent
     ) -> Generator[Any, None, None]:
         """Format a list of items."""
-        lines = [
-            f"{self._safe_text(item.get('name'), 'Unknown')} | "
-            f"{self._safe_text(item.get('id'), 'N/A')}"
-            for item in items[:MAX_LIST_ITEMS]
-            if isinstance(item, dict)
-        ]
+        lines: list[str] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if len(lines) >= MAX_LIST_ITEMS:
+                break
+            lines.append(self._build_header(item))
 
         if not lines:
             yield event.plain_result("数据格式异常，请稍后重试。")
@@ -314,11 +291,20 @@ class STS2Formatter:
 
         yield event.plain_result("\n".join(lines))
 
+    def _build_header(self, item: dict[str, Any]) -> str:
+        """Build a basic header with name and id."""
+        return (
+            f"{self._safe_text(item.get('name'), 'Unknown')} | "
+            f"{self._safe_text(item.get('id'), 'N/A')}"
+        )
+
     @staticmethod
     def _sanitize_text(text: str) -> str:
+        """Remove control characters from text."""
         return re.sub(r"[\x00-\x1f\x7f]", "", text)
 
     def _safe_text(self, value: Any, default: str = "") -> str:
+        """Convert value to sanitized string with a default fallback."""
         if value is None:
             return default
         return self._sanitize_text(str(value))

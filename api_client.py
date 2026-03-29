@@ -73,7 +73,6 @@ class STS2APIClient:
         logger.debug("Fetching %s from %s with params: %s", endpoint, url, params)
 
         try:
-            await self.start()
             session = self._get_session()
             async with session.get(url, params=params) as response:
                 response.raise_for_status()
@@ -90,36 +89,50 @@ class STS2APIClient:
 
         except aiohttp.ContentTypeError as exc:
             logger.error(
-                "Unexpected response content for %s with params %s: %s",
+                "Unexpected response content for %s url %s with params %s: %s",
                 endpoint,
+                url,
                 params,
                 exc,
             )
             raise
         except aiohttp.ClientResponseError as exc:
             logger.error(
-                "HTTP error %s for %s with params %s: %s",
+                "HTTP error %s for %s url %s with params %s: %s",
                 exc.status,
                 endpoint,
+                url,
                 params,
                 exc.message,
             )
             raise
         except aiohttp.ClientError as exc:
             logger.error(
-                "HTTP request failed for %s with params %s: %s", endpoint, params, exc
+                "HTTP request failed for %s url %s with params %s: %s",
+                endpoint,
+                url,
+                params,
+                exc,
             )
             raise
         except asyncio.TimeoutError:
             logger.error(
-                "Request timeout for %s after %ss with params %s",
+                "Request timeout for %s url %s after %ss with params %s",
                 endpoint,
+                url,
                 self.timeout.total,
                 params,
             )
             raise
 
     def _extract_items(self, payload: Any, endpoint: str) -> list[dict[str, Any]]:
+        """Extract item list from supported payload shapes.
+
+        Supported payloads:
+            - list[dict[str, Any]]
+            - dict with a "data" list
+            - dict with an "items" list
+        """
         if isinstance(payload, list):
             return [item for item in payload if isinstance(item, dict)]
 
