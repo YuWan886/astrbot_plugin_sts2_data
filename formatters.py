@@ -7,7 +7,7 @@ from typing import Any
 from astrbot.api.event import AstrMessageEvent
 
 from .api_client import STS2APIClient
-from .constants import DETAILED_ENDPOINTS, ENDPOINTS, MAX_LIST_ITEMS
+from .constants import DETAILED_ENDPOINTS, ENDPOINTS
 
 
 class STS2Formatter:
@@ -347,16 +347,11 @@ class STS2Formatter:
         for item in items:
             if not isinstance(item, dict):
                 continue
-            if len(lines) >= MAX_LIST_ITEMS:
-                break
             lines.append(self._build_header(item))
 
         if not lines:
             yield self._plain_result(event, "数据格式异常，请稍后重试。")
             return
-
-        if len(items) > MAX_LIST_ITEMS:
-            lines.append(f"...and {len(items) - MAX_LIST_ITEMS} more")
 
         yield self._plain_result(event, "\n".join(lines))
 

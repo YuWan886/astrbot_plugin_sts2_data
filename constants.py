@@ -143,6 +143,3 @@ DEFAULT_LANG = "zhs"
 
 # Request timeout in seconds
 REQUEST_TIMEOUT = 10
-
-# Maximum number of items to show in list results
-MAX_LIST_ITEMS = 5

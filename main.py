@@ -16,7 +16,7 @@ from .constants import ENDPOINTS, SINGULAR_ALIASES
 from .formatters import STS2Formatter
 
 
-@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.3.1")
+@register("sts2_data", "YuWan886", "查询杀戮尖塔2数据库信息", "1.3.2")
 class Sts2DataPlugin(Star):
     """Plugin for querying Slay the Spire 2 Codex database."""
 
